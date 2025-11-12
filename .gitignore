@@ -1,5 +1,7 @@
 # Project-specific
 todo.md
+reference.md
+must_follow_rules.md
 
 # Claude Code
 .claude/
@@ -11,6 +13,7 @@ __pycache__/
 *.so
 .Python
 venv/
+myenv/
 env/
 ENV/
 .venv
@@ -58,3 +61,10 @@ logs/
 # Temporary files
 *.tmp
 *.bak
+groq_compound.py
+groq_compound_mini.py
+.gitignore
+CLEANUP_SUMMARY.md
+.gitignore
+CHANGES.md
+backend/test_airtable_connection.py

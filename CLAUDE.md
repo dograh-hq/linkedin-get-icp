@@ -1,0 +1,104 @@
+<system_context>
+LinkedIn Lead Profiling Automation - Full-stack system that fetches LinkedIn post reactors, enriches their profiles with AI, evaluates ICP fit, and stores leads in Airtable. Built with Next.js frontend and FastAPI backend.
+</system_context>
+
+<file_map>
+## FILE MAP
+- `/frontend/` - Next.js application (TypeScript, runs on 0.0.0.0:3000)
+- `/backend/` - FastAPI server (Python, runs on localhost:8000)
+  - `workflow.py` - Main automation workflow
+  - `prompts.py` - Centralized LLM prompt templates
+  - `main.py` - FastAPI server entry point
+- `/README.md` - Setup instructions and documentation
+- `/.gitignore` - Excludes todo.md, reference.md, must_follow_rules.md
+</file_map>
+
+<paved_path>
+## ARCHITECTURE (PAVED PATH)
+
+**Data Flow:**
+1. User submits LinkedIn post URL via Next.js UI
+2. Next.js proxies request to `/api/*` → `localhost:8000/api/*`
+3. FastAPI receives request and runs workflow
+4. Workflow executes linearly in `backend/workflow.py`:
+   - Fetch reactions (Apify)
+   - Check if profile exists (Airtable)
+   - Fetch profile details (Apify)
+   - Fetch company details (Apify, with fallback)
+   - Summarize with Groq Llama
+   - Evaluate ICP fit with OpenAI GPT-5 mini (high reasoning via /v1/responses)
+   - Validate ICP evaluation with Groq openai/gpt-oss-20b (quality control)
+   - Store in Airtable
+5. Results return to frontend dashboard
+
+**Tech Stack:**
+- Frontend: Next.js 14, TypeScript, React
+- Backend: FastAPI, Python 3
+- APIs: Apify, Airtable, Groq, OpenAI
+- Deployment: Frontend on 0.0.0.0:3000, Backend on localhost:8000
+
+**Proxy Configuration:**
+Next.js `rewrites()` in `next.config.js` routes all `/api/*` requests to FastAPI backend.
+</paved_path>
+
+<critical_notes>
+## CRITICAL NOTES
+
+- **All automation steps visible in one file**: `backend/workflow.py` contains the entire workflow linearly for easy modification
+- **Centralized prompts**: All LLM prompts in `backend/prompts.py` for easy customization
+- **Raw JSON to LLM**: Profile and company summaries receive complete raw Apify JSON responses via `json.dumps(data, indent=2)` - no pre-formatting
+- **No helper functions**: Removed all data formatting functions - raw JSON passes directly to AI models for better context
+- **Environment variables**: Backend requires `.env` file with API tokens (never commit)
+- **Tokens provided**: Apify and Groq tokens included in `.env.example`
+- **Airtable schema**: Requires specific fields (case-sensitive): URN, Name, Email Address, Title, Profile URL, Reason (capitalized), icp_fit_strength, validation_judgement, validation_reason, profile_summary, company_summary (lowercase)
+- **ICP evaluation customizable**: Edit `ICP_EVALUATION_PROMPT` in `prompts.py` (not workflow.py) to change matching criteria
+- **Company data fallback**: Primary scraper needs company name/URL, backup scraper works with company ID
+- **Deduplication**: Checks Airtable URN before processing to avoid duplicate API calls
+- **Reactor limit**: Processing limited to first 100 reactors per post to prevent API overload and avoid LinkedIn rate limits (configurable via `MAX_REACTORS_PER_POST`)
+- **Per-profile timeout**: 180-second timeout prevents indefinite hangs, skipped profiles tracked separately
+- **Company website extraction**: Displays company website URLs alongside company names in frontend table (extracted from company.website, company.websiteUrl, or company.basic_info.website)
+- **Code optimization**: Reduced verbose debugging comments while maintaining essential step tracking (65-69% reduction in key functions)
+- **Minimalist design**: Only essential features implemented, easy to extend
+
+**Gotchas:**
+- Frontend must run on 0.0.0.0:3000 (not localhost) for proper access
+- Backend must run on localhost:8000 for proxy to work
+- Both servers must be running simultaneously
+- Missing API keys will cause workflow to fail silently at that step
+</critical_notes>
+
+<must_follow_rules>
+## MISSION CRITICAL RULES
+
+1. **Keep workflow linear and visible** - All automation steps in `workflow.py`, never split across files
+2. **Flexible for future automations** - Structure supports adding new workflows without refactoring
+3. **Minimalist approach** - Only implement requested features, don't over-engineer
+4. **Update CLAUDE.md on changes** - Keep living documentation current in all folders
+5. **Never commit .env files** - Sensitive credentials must stay local
+6. **create nested CLAUDE.md** -cladue.md files shall be created in every folder and subfolder and should contain an updated context and overview of the code in that subfolder/module
+7. **keep updating all CLAUDE.md files** - it is a living documentation
+8. **Add good comments everywhere** -  add comments in your code to make it better documented
+9. **Update on change** - If code changes affect docs, update immediately- update and create claude.md for folders and subfolders. Also update readme.md for context and any updates. When making updates , remove any old context that got changed.
+
+</must_follow_rules>
+
+<workflow>
+## DEVELOPMENT WORKFLOW
+
+**Modifying LLM prompts:**
+1. Edit prompts in `backend/prompts.py`
+2. No code changes needed in `workflow.py`
+3. Available prompts: PROFILE_SUMMARY_SYSTEM_PROMPT, COMPANY_SUMMARY_SYSTEM_PROMPT, ICP_EVALUATION_PROMPT
+
+**Adding new automation steps:**
+1. Edit `backend/workflow.py`
+2. Add step function following existing pattern
+3. Insert into `process_linkedin_post()` orchestrator
+4. Update this CLAUDE.md with changes
+
+**Adding new data sources:**
+1. Create new function in `workflow.py`
+2. Call from main workflow loop
+3. Update Airtable schema if needed
+4. Pass raw data to LLMs using `json.dumps(data, indent=2)`
+</workflow>
