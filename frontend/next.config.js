@@ -6,10 +6,11 @@
 const nextConfig = {
   // Proxy configuration - Routes /api/* requests to FastAPI backend
   async rewrites() {
+    const apiEndpoint = process.env.NEXT_PUBLIC_API_ENDPOINT || 'http://localhost:8000';
     return [
       {
         source: '/api/:path*',  // Frontend endpoint pattern
-        destination: 'http://localhost:8000/api/:path*'  // Backend server URL
+        destination: `${apiEndpoint}/api/:path*`  // Backend server URL from env
       }
     ];
   }

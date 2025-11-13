@@ -68,3 +68,5 @@ CLEANUP_SUMMARY.md
 .gitignore
 CHANGES.md
 backend/test_airtable_connection.py
+
+run/

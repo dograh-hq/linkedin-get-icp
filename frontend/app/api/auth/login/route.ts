@@ -45,7 +45,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Call backend authentication endpoint
-    const backendResponse = await fetch('http://localhost:8000/api/auth/login', {
+    // Use server-side env variable (not NEXT_PUBLIC_* which is for client-side)
+    const apiEndpoint = process.env.API_ENDPOINT || 'http://localhost:8000';
+    const backendResponse = await fetch(`${apiEndpoint}/api/auth/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
