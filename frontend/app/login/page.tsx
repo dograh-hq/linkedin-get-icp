@@ -41,7 +41,10 @@ export default function LoginPage() {
       const data = await response.json();
 
       if (response.ok) {
-        // Authentication successful - redirect to dashboard
+        // Authentication successful - store password for API authentication
+        sessionStorage.setItem('apiKey', password);
+        
+        // Redirect to dashboard
         router.push('/');
         router.refresh();
       } else {

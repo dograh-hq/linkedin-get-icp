@@ -20,16 +20,24 @@ LinkedIn Lead Profiling Automation - Full-stack system that fetches LinkedIn pos
 ## ARCHITECTURE (PAVED PATH)
 
 **Authentication:**
-- Password-protected portal access: `_____`
-- Middleware protects all routes except `/login`
-- HTTP-only secure cookie (7-day expiration)
-- Unauthenticated users redirected to login page
+- **Frontend Authentication**: Password-protected portal access via `PORTAL_PASSWORD`
+  - Middleware protects all routes except `/login`
+  - HTTP-only secure cookie (7-day expiration)
+  - Unauthenticated users redirected to login page
+- **Backend API Authentication**: X-API-Key header validation
+  - Password stored in sessionStorage after login
+  - All API requests include `X-API-Key` header with password
+  - Backend validates header against `PORTAL_PASSWORD` env variable
+  - Protects `/api/process-post`, `/api/process-manual-profiles`, `/api/job-status/*`
+  - Public endpoints: `/` (health check), `/api/auth/login`
 
 **Data Flow:**
 1. User authenticates via `/login` (first time or after 7 days)
-2. User submits LinkedIn post URL via Next.js UI
-3. Next.js proxies request to `/api/*` → `localhost:8000/api/*`
-4. FastAPI receives request and runs workflow
+2. Password stored in sessionStorage for API authentication
+3. User submits LinkedIn post URL via Next.js UI
+4. Frontend includes `X-API-Key` header with all API requests
+5. Next.js proxies request to `/api/*` → `localhost:8000/api/*`
+6. FastAPI validates API key and runs workflow
 4. Workflow executes linearly in `backend/workflow.py`:
    - Fetch reactions (Apify)
    - Check if profile exists (Airtable)
@@ -69,6 +77,7 @@ Next.js `rewrites()` in `next.config.js` routes all `/api/*` requests to FastAPI
 - **Company website extraction**: Displays company website URLs alongside company names in frontend table (extracted from company.website, company.websiteUrl, or company.basic_info.website)
 - **Code optimization**: Reduced verbose debugging comments while maintaining essential step tracking (65-69% reduction in key functions)
 - **Password authentication**: Portal protected with password from `backend/.env: PORTAL_PASSWORD`, backend validates server-side, cookie-based session management (7-day expiration)
+- **Backend API security**: All processing endpoints require `X-API-Key` header matching `PORTAL_PASSWORD` - prevents unauthorized direct API access
 - **Minimalist design**: Only essential features implemented, easy to extend
 
 **Gotchas:**
@@ -76,6 +85,7 @@ Next.js `rewrites()` in `next.config.js` routes all `/api/*` requests to FastAPI
 - Backend must run on localhost:8000 for proxy to work
 - Both servers must be running simultaneously
 - Missing API keys will cause workflow to fail silently at that step
+- **Security**: Direct backend API calls without valid `X-API-Key` header will be rejected with 401/403 errors
 </critical_notes>
 
 <must_follow_rules>

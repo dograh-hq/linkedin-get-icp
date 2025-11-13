@@ -71,7 +71,12 @@ export default function ManualInput() {
   // Poll job status
   const pollJobStatus = async (jid: string) => {
     try {
-      const response = await fetch(`/api/job-status/${jid}`);
+      const apiKey = sessionStorage.getItem('apiKey');
+      const response = await fetch(`/api/job-status/${jid}`, {
+        headers: {
+          'X-API-Key': apiKey || ''
+        }
+      });
       if (!response.ok) {
         throw new Error('Failed to fetch job status');
       }
@@ -145,10 +150,16 @@ export default function ManualInput() {
         throw new Error(`Invalid LinkedIn URLs found. Make sure URLs contain "linkedin.com/in/"`);
       }
 
+      // Get API key from session storage
+      const apiKey = sessionStorage.getItem('apiKey');
+      
       // Start the job
       const response = await fetch('/api/process-manual-profiles', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-API-Key': apiKey || ''
+        },
         body: JSON.stringify({ profile_urls: urls })
       });
 

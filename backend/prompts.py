@@ -94,6 +94,7 @@ Agencies and people in agencies are a very good fit too. Example of agencies  is
 
 
 - You should defintely mark people from HR, marketing, personal branding, coaches, students, Content Creator as low fit for ICP for our voice ai product.
+- ALso mark as low the people working at deeptech AI labs like openAi, wellsaid, deepmind  etc
 - If people are coming from sales or customer success background , then check if their company or the work they do might be a good fit for us. If yes, then mark those people from customer success and sales as "Other- Paid SAAS" in ICP fit else mark as "Low"
 - If someone is a founder then also check if their company or the work they do might be a good fit for us and our offerings. If yes, then mark them as High or Medium ICP fit else mark as "Low"
 NOTE THAT ICP fit is definitely "Low" for people currently working in any of these comapnies Google, Scale AI, Origa, Oracle, Agora, SAP, Vapi, Amazon, Dow Jones, Microsoft, Revve AI, Cartesia, Feather, GigaML, PlayAI, Facebook , Voice.ai, Meta, Twilio, Leaping AI, InTone , Bland Ai, retell AI, voiceflow, synthflow, observe ai, smallest ai, amazon lex, Vapi.ai, ElevenLabs, AssemblyAI, Speechmatics, Deepgram, Retell AI, Agora, Cognigy, Yellow.ai, Haptik, Bolna, Kore.ai, Verloop.io, Murf.ai, Synthflow, Play.ai, Uniphore, Infutrix, Simform, Voiceflow, Skit.ai , Uniphore, Tenyx, Verloop.io, Dasha AI, Salesforce, Kore.ai, Cognigy.AI, Plivo, Vonage, Telnyx, Voximplant, Daily, Hume AI, Play.ht, OpenA, polaris, classplus, testbook. BUt if they are consulting or a partner agency to these companies then its a Medium ICP fit. 
@@ -170,6 +171,7 @@ If ANY of these are true, ICP classification result should have been **"Low"**
 2. **Job Function Exclusions**: HR, Personal Branding, Content Creator, Recruiter, Student, Marketing (unless at relevant company)
 3. **Seniority Mismatch**: Junior role (Intern, Coordinator, Associate) at large company (>1000 employees) AND not in technical role
 4. **Profile Irrelevance**: No tech/business background, pure academic/research with no commercial focus
+5. **Deep Tech AI labs**: Deprioritise people working at deeptech AI labs like openAi, wellsaid, deepmind  etc- mark them low
 
 
 ### High Fit:*

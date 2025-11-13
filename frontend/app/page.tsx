@@ -75,7 +75,12 @@ export default function Home() {
   // Poll job status
   const pollJobStatus = async (jid: string) => {
     try {
-      const response = await fetch(`/api/job-status/${jid}`);
+      const apiKey = sessionStorage.getItem('apiKey');
+      const response = await fetch(`/api/job-status/${jid}`, {
+        headers: {
+          'X-API-Key': apiKey || ''
+        }
+      });
       if (!response.ok) {
         throw new Error('Failed to fetch job status');
       }
@@ -132,10 +137,16 @@ export default function Home() {
     }
 
     try {
+      // Get API key from session storage
+      const apiKey = sessionStorage.getItem('apiKey');
+      
       // Start the job
       const response = await fetch('/api/process-post', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-API-Key': apiKey || ''
+        },
         body: JSON.stringify({ post_url: postUrl })
       });
 

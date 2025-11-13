@@ -1,7 +1,7 @@
 """
 FastAPI server with async job queue for long-running LinkedIn lead profiling
 """
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Header, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -9,7 +9,7 @@ import os
 import uuid
 import asyncio
 from datetime import datetime
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from workflow import process_linkedin_post
 
 load_dotenv()
@@ -27,6 +27,41 @@ app.add_middleware(
 
 # In-memory job store (restart loses state - acceptable for internal tool)
 jobs: Dict[str, Dict[str, Any]] = {}
+
+# ===================================
+# AUTHENTICATION
+# ===================================
+
+def verify_api_key(x_api_key: Optional[str] = Header(None)):
+    """
+    Verify X-API-Key header matches PORTAL_PASSWORD from environment.
+    This protects backend endpoints from unauthorized access.
+    """
+    portal_password = os.getenv("PORTAL_PASSWORD")
+    
+    if not portal_password:
+        raise HTTPException(
+            status_code=500,
+            detail="Server configuration error: PORTAL_PASSWORD not set"
+        )
+    
+    if not x_api_key:
+        raise HTTPException(
+            status_code=401,
+            detail="Missing X-API-Key header. Please authenticate first."
+        )
+    
+    if x_api_key != portal_password:
+        raise HTTPException(
+            status_code=403,
+            detail="Invalid API key"
+        )
+    
+    return True
+
+# ===================================
+# REQUEST MODELS
+# ===================================
 
 class PostRequest(BaseModel):
     """Validates incoming LinkedIn post URL or ID"""
@@ -76,8 +111,8 @@ async def authenticate(request: LoginRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/process-post")
-async def process_post(request: PostRequest):
-    """Start background job to process LinkedIn post reactors"""
+async def process_post(request: PostRequest, authenticated: bool = Depends(verify_api_key)):
+    """Start background job to process LinkedIn post reactors (requires authentication)"""
     try:
         post_id = request.post_url.strip()
 
@@ -119,8 +154,8 @@ async def process_post(request: PostRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/process-manual-profiles")
-async def process_manual_profiles(request: ManualProfilesRequest):
-    """Start background job to process manually provided LinkedIn profile URLs"""
+async def process_manual_profiles(request: ManualProfilesRequest, authenticated: bool = Depends(verify_api_key)):
+    """Start background job to process manually provided LinkedIn profile URLs (requires authentication)"""
     try:
         profile_urls = request.profile_urls
 
@@ -177,8 +212,8 @@ async def process_manual_profiles(request: ManualProfilesRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/job-status/{job_id}")
-async def get_job_status(job_id: str):
-    """Get current status and progress of a background job"""
+async def get_job_status(job_id: str, authenticated: bool = Depends(verify_api_key)):
+    """Get current status and progress of a background job (requires authentication)"""
     if job_id not in jobs:
         raise HTTPException(status_code=404, detail="Job not found")
 
