@@ -467,7 +467,7 @@ export default function ManualInput() {
             ⚠️ Skipped Profiles ({skippedProfiles.length})
           </h2>
           <div style={{ backgroundColor: '#fff3cd', padding: '16px', borderRadius: '8px', marginBottom: '16px', border: '1px solid #ffc107' }}>
-            <strong>Note:</strong> These profiles were skipped due to timeouts (>180s) or errors during processing.
+            <strong>Note:</strong> These profiles were skipped due to timeouts ({'>'}180s) or errors during processing.
           </div>
           <div style={{ overflowX: 'auto' }}>
             <table style={{
