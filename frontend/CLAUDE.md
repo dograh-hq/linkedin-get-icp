@@ -5,6 +5,11 @@ Next.js 14 frontend with TypeScript. Provides UI for submitting LinkedIn posts a
 <file_map>
 ## FILE MAP
 - `app/` - Next.js app directory with pages and components
+  - `login/page.tsx` - Password authentication login page
+  - `api/auth/login/route.ts` - Authentication API endpoint
+  - `page.tsx` - Main dashboard (post reactors workflow)
+  - `manual-input/page.tsx` - Manual profile input workflow
+- `middleware.ts` - Route protection middleware (protects all routes except /login)
 - `next.config.js` - Next.js configuration with proxy rewrites
 - `package.json` - Dependencies and scripts
 - `tsconfig.json` - TypeScript configuration
@@ -17,8 +22,19 @@ Next.js 14 frontend with TypeScript. Provides UI for submitting LinkedIn posts a
 ```
 app/
 ├── layout.tsx - Root layout with metadata
-└── page.tsx - Main page with form + dashboard
+├── page.tsx - Main page with form + dashboard (protected)
+├── manual-input/page.tsx - Manual profile input workflow (protected)
+├── login/page.tsx - Authentication login page (public)
+└── api/auth/login/route.ts - Authentication API endpoint
+middleware.ts - Route protection (checks auth_token cookie)
 ```
+
+**Authentication Flow:**
+1. User visits any route → Middleware checks `auth_token` cookie
+2. If NOT authenticated → Redirect to `/login`
+3. User enters password: `______`
+4. POST to `/api/auth/login` → Sets HTTP-only cookie (7-day expiration)
+5. Redirect to dashboard → All subsequent requests include cookie
 
 **Component Structure (in page.tsx):**
 1. Input form - LinkedIn post URL submission
@@ -41,6 +57,9 @@ app/
 
 - **Must run on 0.0.0.0:3000**: Required for proper network access
 - **Proxy configuration**: All `/api/*` requests auto-route to FastAPI backend
+- **Authentication required**: All routes protected except `/login` (password: `__________`)
+- **Cookie-based auth**: HTTP-only secure cookie with 7-day expiration
+- **Middleware protection**: `middleware.ts` checks auth on every request
 - **No TypeScript `any` types**: All types explicitly defined
 - **Minimal styling**: Inline styles only, no CSS framework
 - **Client-side only**: 'use client' directive on main page

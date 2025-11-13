@@ -56,6 +56,7 @@ Note: Limited to 100 reactors per post to avoid API overload and LinkedIn rate l
   - `AIRTABLE_TABLE_NAME` - Defaults to "Leads"
   - `OPENAI_API_KEY` - User must add
   - `GROQ_API_KEY` - Already provided in .env.example
+  - `PORTAL_PASSWORD` - Portal authentication password (example provided in .env.example, MUST CHANGE for production)
 
 - **Apify actors used**:
   1. `apimaestro~linkedin-post-reactions` - Get reactions

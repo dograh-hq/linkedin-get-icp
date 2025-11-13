@@ -51,6 +51,7 @@ Manual profile input page - Allows users to directly input LinkedIn profile URLs
 <critical_notes>
 ## CRITICAL NOTES
 
+- **Authentication protected** - Requires valid `auth_token` cookie (password: `_______`)
 - **Max 100 profiles per batch** - Hard limit to prevent API overload
 - **URL validation** - Must contain "linkedin.com/in/"
 - **One URL per line** - Textarea split by newlines

@@ -5,7 +5,10 @@ Next.js App Router pages. Contains root layout and main dashboard page for Linke
 <file_map>
 ## FILE MAP
 - `layout.tsx` - Root layout wrapper with HTML structure and metadata
-- `page.tsx` - Main dashboard page with form, progress, and results table
+- `page.tsx` - Main dashboard page with form, progress, and results table (protected)
+- `manual-input/page.tsx` - Manual profile input workflow page (protected)
+- `login/page.tsx` - Password authentication login page (public)
+- `api/auth/login/route.ts` - Authentication API endpoint
 </file_map>
 
 <paved_path>
@@ -49,6 +52,7 @@ Next.js App Router pages. Contains root layout and main dashboard page for Linke
 <critical_notes>
 ## CRITICAL NOTES
 
+- **Authentication protected**: All pages except `/login` require authentication (middleware checks `auth_token` cookie)
 - **Client component**: 'use client' directive required for useState
 - **Inline styles only**: No external CSS files
 - **Synchronous processing**: No WebSocket/SSE for real-time updates

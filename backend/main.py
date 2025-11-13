@@ -36,10 +36,44 @@ class ManualProfilesRequest(BaseModel):
     """Validates incoming manual profile URLs"""
     profile_urls: list[str]
 
+class LoginRequest(BaseModel):
+    """Validates incoming login credentials"""
+    password: str
+
 @app.get("/")
 def root():
     """Health check endpoint"""
     return {"message": "LinkedIn Lead Profiling API is running"}
+
+@app.post("/api/auth/login")
+async def authenticate(request: LoginRequest):
+    """Validate portal password from environment variable"""
+    try:
+        portal_password = os.getenv("PORTAL_PASSWORD")
+        
+        # Check if password is configured
+        if not portal_password:
+            raise HTTPException(
+                status_code=500, 
+                detail="Portal password not configured. Set PORTAL_PASSWORD in .env file"
+            )
+        
+        # Validate password
+        if request.password == portal_password:
+            return {
+                "success": True,
+                "message": "Authentication successful"
+            }
+        else:
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid password"
+            )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/process-post")
 async def process_post(request: PostRequest):

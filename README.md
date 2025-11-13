@@ -111,6 +111,36 @@ cp .env.example .env
 # Edit .env and add your tokens
 ```
 
+## Authentication
+
+The application is protected with password authentication to prevent unauthorized access.
+
+**Login Credentials:**
+- Password is set in `backend/.env`: `PORTAL_PASSWORD=your-password-here`
+- Default example password: `________` (in `.env.example`)
+- No username required - just enter the password
+- **IMPORTANT**: Change the default password before deploying or sharing
+
+**How It Works:**
+- All routes except `/login` are protected by middleware
+- Frontend sends password to backend API for validation
+- Backend validates against `PORTAL_PASSWORD` environment variable
+- On successful authentication, a secure HTTP-only cookie is set (7-day expiration)
+- Password never stored in frontend code or committed to repository
+- Backend must be running for authentication to work
+
+**Login Page:**
+- URL: `http://localhost:3000/login`
+- Simple password field with validation
+- Shows error message on incorrect password
+- Redirects to dashboard on successful login
+
+**Technical Details:**
+- Password validation happens server-side (FastAPI backend)
+- Middleware checks for `auth_token` cookie on every request
+- Cookie is HTTP-only and secure (in production)
+- Frontend proxies auth requests to `localhost:8000/api/auth/login`
+
 ## Setup Instructions
 
 ### Backend Setup
@@ -143,6 +173,7 @@ cp .env.example .env
    - `AIRTABLE_TABLE_NAME`: Table name (default: "Leads")
    - `OPENAI_API_KEY`: Your OpenAI API key
    - `GROQ_API_KEY`: Your Groq API key
+   - `PORTAL_PASSWORD`: Your portal authentication password (change from default!)
 
 6. Run the FastAPI server:
    ```bash
@@ -192,9 +223,17 @@ Create a table with these fields (**exact names - case-sensitive**):
 
 ## Usage
 
-### Option 1: From Post Reactors (Automatic)
+**First-time Access:**
 1. Start both backend and frontend servers
 2. Open `http://localhost:3000` in your browser
+3. You'll be redirected to the login page
+4. Enter the password you set in `backend/.env` (PORTAL_PASSWORD)
+5. Click "Login" - you'll be redirected to the dashboard
+
+### Option 1: From Post Reactors (Automatic)
+1. Start both backend and frontend servers (if not already running)
+2. Login if not already authenticated
+3. Open `http://localhost:3000` in your browser (or you'll already be there after login)
 3. Click "From Post Reactors" tab (default)
 4. Enter a LinkedIn post URL or ID (e.g., `7392508631268835328`)
 5. Click "Process Post"

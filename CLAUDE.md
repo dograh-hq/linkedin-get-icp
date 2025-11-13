@@ -5,6 +5,9 @@ LinkedIn Lead Profiling Automation - Full-stack system that fetches LinkedIn pos
 <file_map>
 ## FILE MAP
 - `/frontend/` - Next.js application (TypeScript, runs on 0.0.0.0:3000)
+  - `app/login/page.tsx` - Password authentication login page
+  - `app/api/auth/login/route.ts` - Authentication API endpoint
+  - `middleware.ts` - Route protection middleware
 - `/backend/` - FastAPI server (Python, runs on localhost:8000)
   - `workflow.py` - Main automation workflow
   - `prompts.py` - Centralized LLM prompt templates
@@ -16,10 +19,17 @@ LinkedIn Lead Profiling Automation - Full-stack system that fetches LinkedIn pos
 <paved_path>
 ## ARCHITECTURE (PAVED PATH)
 
+**Authentication:**
+- Password-protected portal access: `_____`
+- Middleware protects all routes except `/login`
+- HTTP-only secure cookie (7-day expiration)
+- Unauthenticated users redirected to login page
+
 **Data Flow:**
-1. User submits LinkedIn post URL via Next.js UI
-2. Next.js proxies request to `/api/*` → `localhost:8000/api/*`
-3. FastAPI receives request and runs workflow
+1. User authenticates via `/login` (first time or after 7 days)
+2. User submits LinkedIn post URL via Next.js UI
+3. Next.js proxies request to `/api/*` → `localhost:8000/api/*`
+4. FastAPI receives request and runs workflow
 4. Workflow executes linearly in `backend/workflow.py`:
    - Fetch reactions (Apify)
    - Check if profile exists (Airtable)
@@ -58,6 +68,7 @@ Next.js `rewrites()` in `next.config.js` routes all `/api/*` requests to FastAPI
 - **Per-profile timeout**: 180-second timeout prevents indefinite hangs, skipped profiles tracked separately
 - **Company website extraction**: Displays company website URLs alongside company names in frontend table (extracted from company.website, company.websiteUrl, or company.basic_info.website)
 - **Code optimization**: Reduced verbose debugging comments while maintaining essential step tracking (65-69% reduction in key functions)
+- **Password authentication**: Portal protected with password from `backend/.env: PORTAL_PASSWORD`, backend validates server-side, cookie-based session management (7-day expiration)
 - **Minimalist design**: Only essential features implemented, easy to extend
 
 **Gotchas:**
