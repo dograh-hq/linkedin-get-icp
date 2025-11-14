@@ -32,11 +32,11 @@ Next.js App Router pages. Contains root layout and main dashboard page for Linke
 │ X / Y profiles processed  │
 └───────────────────────────┘
 
-┌─ Results Table ──────────────────────────────────────────┐
-│ Name | Company | Title | ICP Fit | ICP Reason | ... | URL │
-│ ...  | ...     | ...   | ...     | ...        | ... | ... │
-└──────────────────────────────────────────────────────────┘
-(Columns: Name=150px, Company=150px, Title=120px, ICP Fit=100px,
+┌─ Results Table ──────────────────────────────────────────────────┐
+│ Name | Company | Email | Title | ICP Fit | ICP Reason | ... | URL │
+│ ...  | ...     | ...   | ...   | ...     | ...        | ... | ... │
+└──────────────────────────────────────────────────────────────────┘
+(Columns: Name=150px, Company=150px, Email=180px, Title=120px, ICP Fit=100px,
  ICP Reason=500px, Validation=120px, Validation Reason=300px, Profile URL=120px)
 ```
 
@@ -72,11 +72,15 @@ Next.js App Router pages. Contains root layout and main dashboard page for Linke
 - No need to wait for all 100 profiles to finish
 - First result appears within ~1 minute
 
-**Table Structure (Updated 2025-01-13):**
+**Table Structure (Updated 2025-01-14):**
 - **Company column** - Shows company_name + company_website as stacked display (150px)
   - First line: Company name
   - Second line: Clickable website URL (blue, 12px font, word-break)
   - Website extracted from: company.website or company.websiteUrl or company.basic_info.website
+- **Email column** - Displays profile email address (180px)
+  - Shows email from profile data (profile_data.get('email', ''))
+  - Fallback: "Not Available" when email field is empty
+  - Positioned after Company, before Title for logical grouping
 - **Profile URL moved to last** - Displays full clickable URL for bulk copying (120px)
 - **Column widths optimized** - ICP Reason 2.5x wider (500px), Title 0.4x narrower (120px), Validation Reason 1.5x wider (300px)
 - Company name sourced from profile.companyName or company.name (fallback: 'Unknown')

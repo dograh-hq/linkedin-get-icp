@@ -262,6 +262,7 @@ The frontend dashboard displays processed leads in a structured table with the f
 |--------|-------|-------------|
 | **Name** | 150px | Full name of the LinkedIn profile |
 | **Company** | 150px | Company name + website URL (stacked display) |
+| **Email** | 180px | Email address from profile (or "Not Available") |
 | **Title** | 120px | Job title/headline |
 | **ICP Fit** | 100px | High/Medium/Low badge (color-coded) |
 | **ICP Reason** | 500px | Detailed explanation of ICP evaluation |
@@ -273,6 +274,9 @@ The frontend dashboard displays processed leads in a structured table with the f
 - **Company column**: Shows company name on first line, website URL on second line (if available)
   - Website extracted from company API: `website`, `websiteUrl`, or `basic_info.website`
   - Clickable blue link (12px font size)
+- **Email column**: Displays email address extracted from LinkedIn profile data
+  - Shows "Not Available" when profile has no email
+  - Positioned after Company, before Title for logical contact information grouping
 - **Profile URL column**: Displays full URL as clickable text (for easy bulk copying)
 - **Optimized widths**: ICP Reason (2.5x wider), Title (0.4x narrower), Validation Reason (1.5x wider) for better readability
 - **Color-coded badges**: Green (High/Correct), Yellow (Medium/Unsure), Red (Low/Incorrect)

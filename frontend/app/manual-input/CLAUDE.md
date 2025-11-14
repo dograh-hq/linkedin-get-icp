@@ -60,14 +60,18 @@ Manual profile input page - Allows users to directly input LinkedIn profile URLs
 - **Same API structure** - Uses job queue system like post reactor workflow
 - **Incremental results** - Leads appear as they're processed (~1 min per profile)
 
-**Table Structure (Updated 2025-01-13):**
-Columns: Name (150px) | **Company (150px)** | Title (120px) | ICP Fit (100px) | ICP Reason (500px) | Validation (120px) | Validation Reason (300px) | **Profile URL (120px)**
+**Table Structure (Updated 2025-01-14):**
+Columns: Name (150px) | **Company (150px)** | **Email (180px)** | Title (120px) | ICP Fit (100px) | ICP Reason (500px) | Validation (120px) | Validation Reason (300px) | **Profile URL (120px)**
 
 **Key Changes:**
 - **Company column** - Shows company_name + company_website in stacked display
   - First line: Company name
   - Second line: Clickable website URL (blue, 12px, word-break)
   - Website extracted from: company.website, company.websiteUrl, or company.basic_info.website
+- **Email column** - Displays profile email address (180px)
+  - Shows email from profile data (profile_data.get('email', ''))
+  - Fallback: "Not Available" when email field is empty
+  - Positioned after Company, before Title for logical grouping
 - **Profile URL moved to last** - Displays full clickable URL for bulk copying
 - **Column widths optimized** - ICP Reason 2.5x wider (500px), Title 0.4x narrower (120px), Validation Reason 1.5x wider (300px)
 

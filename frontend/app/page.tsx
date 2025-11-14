@@ -371,6 +371,7 @@ export default function Home() {
                 <tr style={{ backgroundColor: '#f9f9f9', borderBottom: '2px solid #ddd' }}>
                   <th style={{ padding: '12px', textAlign: 'left', fontWeight: '600', width: '150px' }}>Name</th>
                   <th style={{ padding: '12px', textAlign: 'left', fontWeight: '600', width: '150px' }}>Company</th>
+                  <th style={{ padding: '12px', textAlign: 'left', fontWeight: '600', width: '180px' }}>Email</th>
                   <th style={{ padding: '12px', textAlign: 'left', fontWeight: '600', width: '120px' }}>Title</th>
                   <th style={{ padding: '12px', textAlign: 'left', fontWeight: '600', width: '100px' }}>ICP Fit</th>
                   <th style={{ padding: '12px', textAlign: 'left', fontWeight: '600', width: '500px' }}>ICP Reason</th>
@@ -392,6 +393,7 @@ export default function Home() {
                         </a>
                       )}
                     </td>
+                    <td style={{ padding: '12px', width: '180px', fontSize: '13px' }}>{lead.email || 'Not Available'}</td>
                     <td style={{ padding: '12px', width: '120px', fontSize: '13px' }}>{lead.title}</td>
                     <td style={{ padding: '12px', width: '100px' }}>
                       <span style={{
