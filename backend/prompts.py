@@ -47,7 +47,7 @@ Include:
 - Website and online presence
 - Any other relevant business information
 
-When to highligh: If the company looks like a IT consulting agency (that builds custom tools/solution for others on consulting projects for other product companies) , then mention this separately. if its a big or a poular company like Microsoft, Cisco , SAP etc then highlight that. If their employee strength is very high, highlight that too. If it looks like a voice ai company , highlight that too. If it looks like a top funded startup , then mention that too.
+When to highlight: If the company looks like a IT consulting agency (that builds custom tools/solution for others on consulting projects for other product companies) , then mention this separately. if its a big or a poular company like Microsoft, Cisco , SAP etc then highlight that. If their employee strength is very high, highlight that too. If it looks like a voice ai company , highlight that too. If it looks like a top funded startup , then mention that too.
 
 
   
@@ -207,6 +207,121 @@ YOU MUST RESPOND WITH **ONLY** THE JSON OBJECT BELOW. DO NOT ADD:
 
 EXAMPLE OF CORRECT OUTPUT FORMAT (copy this structure exactly):
 {{"validation_judgement": "Correct", "validation_reason": "Founder of voice AI agency matches high-fit criteria; no exclusions apply"}}
+
+NOW PROVIDE YOUR RESPONSE AS JSON ONLY:
+{{
+  "validation_judgement": "Correct/Incorrect/Unsure",
+  "validation_reason": "Your brief explanation here (1-2 sentences)"
+}}"""
+
+# ===================================
+# CUSTOM USE CASE EVALUATION PROMPT
+# ===================================
+
+CUSTOM_EVALUATION_PROMPT = """You are an expert at evaluating LinkedIn profiles against custom use case criteria.
+
+Based on the profile summary and company summary provided below, evaluate if this person is a good fit for the user's specific use case.
+
+PROFILE SUMMARY:
+{profile_summary}
+
+COMPANY SUMMARY:
+{company_summary}
+
+USER'S EVALUATION CRITERIA:
+{custom_criteria}
+
+YOUR TASK:
+Analyze the profile and company data against the user's criteria provided above. Determine if this person is a strong match for the use case.
+
+Consider the following in your evaluation:
+1. **Role/Title Match**: Does their current or recent role align with the target criteria?
+2. **Company/Industry Match**: Does their company or industry match the target sectors?
+3. **Skills/Experience Match**: Do their skills and experience align with requirements?
+4. **Exclusion Factors**: Are there any exclusions mentioned in the criteria that apply?
+5. **Decision-Making Authority**: Based on the criteria, does this person likely have the right level of authority or influence?
+
+SCORING GUIDELINES:
+- **High**: Strong match - multiple criteria clearly met, high potential for the use case
+- **Medium**: Partial match - some criteria met, moderate potential, or not enough information to be certain
+- **Low**: Poor match - few/no criteria met, low potential for the use case
+
+IMPORTANT: When in doubt between High and Medium, or between Medium and Low, choose the more conservative option (Medium).
+
+RESPOND IN JSON FORMAT ONLY:
+{{
+  "icp_fit_strength": "High/Medium/Low",
+  "reason": "Brief explanation (1-2 sentences) focusing on why they match or don't match the criteria"
+}}
+
+Your response:"""
+
+# ===================================
+# CUSTOM USE CASE VALIDATION PROMPT
+# ===================================
+
+CUSTOM_VALIDATION_PROMPT = """CRITICAL: You MUST respond with ONLY valid JSON. No explanatory text, no markdown, no code blocks. Just the raw JSON object.
+
+You are a senior quality control analyst reviewing a custom use case evaluation.
+
+## Your Task
+Review the ORIGINAL EVALUATION and determine if it's correct based on the LEAD DATA and USER'S CRITERIA.
+
+---
+
+## Context
+
+**Lead's PROFILE SUMMARY:**
+{profile_summary}
+
+**Lead's COMPANY SUMMARY:**
+{company_summary}
+
+**USER'S EVALUATION CRITERIA:**
+{custom_criteria}
+
+**FIRST EVALUATION RESULT:**
+- Fit Strength: {icp_fit_strength}
+- Reason: {icp_reason}
+
+---
+
+## Validation Guidelines
+
+Review the evaluation independently. Consider:
+
+1. **Criteria Alignment**: Does the profile actually match the user's stated criteria?
+2. **Evidence Quality**: Is the reasoning based on concrete evidence from the profile/company data?
+3. **Fit Level Appropriateness**: Is "High/Medium/Low" the right level given the match quality?
+4. **Missed Factors**: Are there important criteria that were overlooked (either positive or negative)?
+5. **Logical Consistency**: Does the reason logically support the fit level assigned?
+
+**Common Evaluation Errors to Check:**
+- Marking "High" when only partial criteria are met (should be "Medium")
+- Marking "Low" when some relevant criteria are met (should be "Medium")
+- Ignoring explicit exclusion criteria mentioned by user
+- Over-weighting one factor while ignoring others
+- Vague reasoning that doesn't reference specific criteria
+
+---
+
+## OUTPUT FORMAT - CRITICAL INSTRUCTIONS
+
+YOU MUST RESPOND WITH **ONLY** THE JSON OBJECT BELOW. DO NOT ADD:
+- No explanatory text before or after the JSON
+- No markdown formatting like ```json or ```
+- No additional commentary
+- No line breaks outside the JSON structure
+
+**validation_judgement** - Choose EXACTLY ONE:
+- "Correct" - Evaluation matches the profile data and user criteria appropriately
+- "Incorrect" - Evaluation clearly contradicts the evidence or criteria
+- "Unsure" - Edge case, ambiguous criteria, or reasonable disagreement possible
+
+**validation_reason** - 1-2 brief sentences referencing specific evidence and criteria. Use short phrases.
+
+EXAMPLE OF CORRECT OUTPUT FORMAT:
+{{"validation_judgement": "Correct", "validation_reason": "Profile matches target role and industry; company size aligns with criteria"}}
 
 NOW PROVIDE YOUR RESPONSE AS JSON ONLY:
 {{

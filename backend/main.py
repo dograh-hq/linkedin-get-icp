@@ -1,9 +1,11 @@
 """
 FastAPI server with async job queue for long-running LinkedIn lead profiling
 """
-from fastapi import FastAPI, HTTPException, Header, Depends
+from fastapi import FastAPI, HTTPException, Header, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, ValidationError
 from dotenv import load_dotenv
 import os
 import uuid
@@ -11,10 +13,38 @@ import asyncio
 from datetime import datetime
 from typing import Dict, Any, Optional
 from workflow import process_linkedin_post
+import json
 
 load_dotenv()
 
 app = FastAPI(title="LinkedIn Lead Profiling API")
+
+# Add exception handler to log Pydantic validation errors
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Log and return detailed validation errors"""
+    print("\n" + "="*80)
+    print("VALIDATION ERROR DETECTED!")
+    print(f"Request URL: {request.url}")
+    print(f"Request method: {request.method}")
+
+    # Try to get raw request body
+    try:
+        body = await request.body()
+        print(f"Raw request body: {body.decode('utf-8')}")
+    except Exception as e:
+        print(f"Could not read request body: {e}")
+
+    print(f"Validation errors: {exc.errors()}")
+    print("="*80 + "\n")
+
+    return JSONResponse(
+        status_code=400,
+        content={
+            "detail": exc.errors(),
+            "body": str(exc.body) if hasattr(exc, 'body') else None
+        }
+    )
 
 # Enable CORS for frontend access
 app.add_middleware(
@@ -74,6 +104,24 @@ class ManualProfilesRequest(BaseModel):
 class LoginRequest(BaseModel):
     """Validates incoming login credentials"""
     password: str
+
+class CustomCriteria(BaseModel):
+    """Custom evaluation criteria for generic use case evaluation"""
+    use_case_description: str  # Required field - what the user is looking for
+    target_roles: Optional[str] = None  # Optional comma-separated roles
+    target_industries: Optional[str] = None  # Optional industries/sectors
+    company_size: Optional[str] = None  # Optional company size range
+    additional_requirements: Optional[str] = None  # Optional exclusions, examples, edge cases
+
+class PostRequestCustom(BaseModel):
+    """Validates incoming LinkedIn post URL with custom evaluation criteria"""
+    post_url: str
+    custom_criteria: CustomCriteria
+
+class ManualProfilesRequestCustom(BaseModel):
+    """Validates incoming manual profile URLs with custom evaluation criteria"""
+    profile_urls: list[str]
+    custom_criteria: CustomCriteria
 
 @app.get("/")
 def root():
@@ -165,16 +213,28 @@ async def process_manual_profiles(request: ManualProfilesRequest, authenticated:
         if not profile_urls:
             raise HTTPException(status_code=400, detail="No valid profile URLs provided")
 
-        # Basic LinkedIn URL validation
+        # Basic LinkedIn URL validation - filter out invalid URLs instead of blocking
         invalid_urls = []
+        valid_profile_urls = []
+
         for url in profile_urls:
-            if not ('linkedin.com/in/' in url.lower() or url.startswith('/')):
+            if 'linkedin.com/in/' in url.lower() or url.startswith('/'):
+                valid_profile_urls.append(url)
+            else:
                 invalid_urls.append(url)
+                print(f"Skipping invalid URL (not a profile): {url}")
 
         if invalid_urls:
+            print(f"WARNING - Skipping {len(invalid_urls)} invalid URLs (company pages, etc.)")
+
+        # Update profile_urls to only valid ones
+        profile_urls = valid_profile_urls
+
+        # Check if we have any valid URLs left
+        if not profile_urls:
             raise HTTPException(
                 status_code=400,
-                detail=f"Invalid LinkedIn profile URLs: {', '.join(invalid_urls[:3])}"
+                detail="No valid LinkedIn profile URLs found. All URLs must contain 'linkedin.com/in/' (company pages are not supported)"
             )
 
         # Generate unique job ID
@@ -200,10 +260,17 @@ async def process_manual_profiles(request: ManualProfilesRequest, authenticated:
         # Start background processing
         asyncio.create_task(process_manual_profiles_async(job_id, profile_urls))
 
+        # Build response message
+        message = f"Processing started for {len(profile_urls)} valid profiles"
+        if invalid_urls:
+            message += f" ({len(invalid_urls)} invalid URLs skipped)"
+
         return {
             "job_id": job_id,
             "status": "started",
-            "message": f"Processing started for {len(profile_urls)} profiles"
+            "message": message,
+            "valid_profiles": len(profile_urls),
+            "skipped_urls": len(invalid_urls)
         }
 
     except HTTPException:
@@ -229,6 +296,147 @@ async def get_job_status(job_id: str, authenticated: bool = Depends(verify_api_k
         "completed_at": job["completed_at"],
         "error": job["error"]
     }
+
+@app.post("/api/process-post-custom")
+async def process_post_custom(request: PostRequestCustom, authenticated: bool = Depends(verify_api_key)):
+    """Start background job to process LinkedIn post reactors with custom evaluation criteria (requires authentication)"""
+    try:
+        post_id = request.post_url.strip()
+
+        # Extract numeric ID from URL if full URL provided
+        if "linkedin.com" in post_id or "/" in post_id:
+            parts = post_id.split("/")
+            post_id = [p for p in parts if p and p.isdigit()][-1] if any(p.isdigit() for p in parts) else post_id
+
+        # Generate unique job ID
+        job_id = str(uuid.uuid4())
+
+        # Initialize job state (same structure as regular endpoint)
+        jobs[job_id] = {
+            "status": "processing",
+            "post_id": post_id,
+            "custom_mode": True,  # Flag to track this is custom evaluation
+            "progress": {
+                "current": 0,
+                "total": 0,
+                "message": "Fetching post reactions..."
+            },
+            "results": [],
+            "partial_results": [],
+            "skipped_profiles": [],
+            "started_at": datetime.now().isoformat(),
+            "completed_at": None,
+            "error": None
+        }
+
+        # Start background processing with custom criteria
+        asyncio.create_task(process_job_custom_async(job_id, post_id, request.custom_criteria))
+
+        return {
+            "job_id": job_id,
+            "status": "started",
+            "message": f"Custom evaluation started for post {post_id}"
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/process-manual-profiles-custom")
+async def process_manual_profiles_custom(request: ManualProfilesRequestCustom, authenticated: bool = Depends(verify_api_key)):
+    """Start background job to process manually provided LinkedIn profiles with custom evaluation criteria (requires authentication)"""
+    try:
+        # DEBUG LOGGING - Log incoming request details
+        print("\n" + "="*80)
+        print("DEBUG: Received custom evaluation request")
+        print(f"DEBUG: Request type: {type(request)}")
+        print(f"DEBUG: Profile URLs: {request.profile_urls}")
+        print(f"DEBUG: Custom criteria type: {type(request.custom_criteria)}")
+        print(f"DEBUG: Custom criteria object: {request.custom_criteria}")
+        print(f"DEBUG: use_case_description: {request.custom_criteria.use_case_description}")
+        print(f"DEBUG: target_roles: {request.custom_criteria.target_roles}")
+        print(f"DEBUG: target_industries: {request.custom_criteria.target_industries}")
+        print(f"DEBUG: company_size: {request.custom_criteria.company_size}")
+        print(f"DEBUG: additional_requirements: {request.custom_criteria.additional_requirements}")
+        print("="*80 + "\n")
+
+        profile_urls = request.profile_urls
+
+        # Validate and clean URLs
+        profile_urls = [url.strip() for url in profile_urls if url.strip()]
+        print(f"DEBUG: Cleaned profile URLs count: {len(profile_urls)}")
+
+        if not profile_urls:
+            print("DEBUG: ERROR - No valid profile URLs after cleaning")
+            raise HTTPException(status_code=400, detail="No valid profile URLs provided")
+
+        # Basic LinkedIn URL validation - filter out invalid URLs instead of blocking
+        invalid_urls = []
+        valid_profile_urls = []
+
+        for url in profile_urls:
+            if 'linkedin.com/in/' in url.lower() or url.startswith('/'):
+                valid_profile_urls.append(url)
+            else:
+                invalid_urls.append(url)
+                print(f"DEBUG: Skipping invalid URL (not a profile): {url}")
+
+        if invalid_urls:
+            print(f"DEBUG: WARNING - Skipping {len(invalid_urls)} invalid URLs (company pages, etc.):")
+            for url in invalid_urls[:5]:
+                print(f"  - {url}")
+
+        # Update profile_urls to only valid ones
+        profile_urls = valid_profile_urls
+
+        # Check if we have any valid URLs left
+        if not profile_urls:
+            print("DEBUG: ERROR - No valid profile URLs after filtering")
+            raise HTTPException(
+                status_code=400,
+                detail="No valid LinkedIn profile URLs found. All URLs must contain 'linkedin.com/in/' (company pages are not supported)"
+            )
+
+        # Generate unique job ID
+        job_id = str(uuid.uuid4())
+
+        # Initialize job state
+        jobs[job_id] = {
+            "status": "processing",
+            "profile_count": len(profile_urls),
+            "custom_mode": True,  # Flag to track this is custom evaluation
+            "progress": {
+                "current": 0,
+                "total": 0,
+                "message": "Starting custom evaluation..."
+            },
+            "results": [],
+            "partial_results": [],
+            "skipped_profiles": [],
+            "started_at": datetime.now().isoformat(),
+            "completed_at": None,
+            "error": None
+        }
+
+        # Start background processing with custom criteria
+        asyncio.create_task(process_manual_profiles_custom_async(job_id, profile_urls, request.custom_criteria))
+
+        # Build response message
+        message = f"Custom evaluation started for {len(profile_urls)} valid profiles"
+        if invalid_urls:
+            message += f" ({len(invalid_urls)} invalid URLs skipped)"
+
+        return {
+            "job_id": job_id,
+            "status": "started",
+            "message": message,
+            "valid_profiles": len(profile_urls),
+            "skipped_urls": len(invalid_urls)
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 async def process_job_async(job_id: str, post_id: str):
     """Run workflow in background and update job progress"""
@@ -299,6 +507,82 @@ def process_manual_profiles_with_progress(profile_urls: list, job_id: str) -> di
     """Wrapper to update job progress during manual profile processing"""
     from workflow import process_manual_profiles_tracked
     return process_manual_profiles_tracked(profile_urls, job_id, jobs)
+
+async def process_job_custom_async(job_id: str, post_id: str, custom_criteria: CustomCriteria):
+    """Run workflow in background with custom evaluation criteria"""
+    try:
+        # Convert Pydantic model to dict for workflow function
+        criteria_dict = custom_criteria.dict()
+
+        # Run workflow in thread pool to avoid blocking event loop
+        loop = asyncio.get_event_loop()
+        results = await loop.run_in_executor(
+            None,
+            process_linkedin_post_custom_with_progress,
+            post_id,
+            job_id,
+            criteria_dict
+        )
+
+        # Mark job as completed
+        successful_count = len(results.get("leads", []))
+        skipped_count = len(results.get("skipped_profiles", []))
+
+        jobs[job_id]["status"] = "completed"
+        jobs[job_id]["results"] = results.get("leads", [])
+        jobs[job_id]["skipped_profiles"] = results.get("skipped_profiles", [])
+        jobs[job_id]["completed_at"] = datetime.now().isoformat()
+        jobs[job_id]["progress"]["message"] = f"Completed! {successful_count} successful, {skipped_count} skipped"
+
+    except Exception as e:
+        # Mark job as failed
+        jobs[job_id]["status"] = "failed"
+        jobs[job_id]["error"] = str(e)
+        jobs[job_id]["completed_at"] = datetime.now().isoformat()
+        jobs[job_id]["progress"]["message"] = f"Error: {str(e)}"
+
+async def process_manual_profiles_custom_async(job_id: str, profile_urls: list, custom_criteria: CustomCriteria):
+    """Run manual profile workflow in background with custom evaluation criteria"""
+    try:
+        # Convert Pydantic model to dict for workflow function
+        criteria_dict = custom_criteria.dict()
+
+        # Run workflow in thread pool to avoid blocking event loop
+        loop = asyncio.get_event_loop()
+        results = await loop.run_in_executor(
+            None,
+            process_manual_profiles_custom_with_progress,
+            profile_urls,
+            job_id,
+            criteria_dict
+        )
+
+        # Mark job as completed
+        successful_count = len(results.get("leads", []))
+        skipped_count = len(results.get("skipped_profiles", []))
+
+        jobs[job_id]["status"] = "completed"
+        jobs[job_id]["results"] = results.get("leads", [])
+        jobs[job_id]["skipped_profiles"] = results.get("skipped_profiles", [])
+        jobs[job_id]["completed_at"] = datetime.now().isoformat()
+        jobs[job_id]["progress"]["message"] = f"Completed! {successful_count} successful, {skipped_count} skipped"
+
+    except Exception as e:
+        # Mark job as failed
+        jobs[job_id]["status"] = "failed"
+        jobs[job_id]["error"] = str(e)
+        jobs[job_id]["completed_at"] = datetime.now().isoformat()
+        jobs[job_id]["progress"]["message"] = f"Error: {str(e)}"
+
+def process_linkedin_post_custom_with_progress(post_id: str, job_id: str, custom_criteria_dict: dict) -> dict:
+    """Wrapper to update job progress during custom post processing"""
+    from workflow import process_linkedin_post_tracked
+    return process_linkedin_post_tracked(post_id, job_id, jobs, custom_criteria_dict)
+
+def process_manual_profiles_custom_with_progress(profile_urls: list, job_id: str, custom_criteria_dict: dict) -> dict:
+    """Wrapper to update job progress during custom manual profile processing"""
+    from workflow import process_manual_profiles_tracked
+    return process_manual_profiles_tracked(profile_urls, job_id, jobs, custom_criteria_dict)
 
 if __name__ == "__main__":
     import uvicorn

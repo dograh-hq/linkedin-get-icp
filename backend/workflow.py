@@ -17,7 +17,9 @@ from prompts import (
     PROFILE_SUMMARY_SYSTEM_PROMPT,
     COMPANY_SUMMARY_SYSTEM_PROMPT,
     ICP_EVALUATION_PROMPT,
-    ICP_VALIDATION_PROMPT
+    ICP_VALIDATION_PROMPT,
+    CUSTOM_EVALUATION_PROMPT,
+    CUSTOM_VALIDATION_PROMPT
 )
 
 # ===================================
@@ -374,12 +376,199 @@ def validate_icp_evaluation(profile_summary: str, company_summary: str, icp_eval
 
 
 # ===================================
+# CUSTOM USE CASE EVALUATION (GENERIC)
+# ===================================
+
+def format_custom_criteria(custom_criteria_dict: dict) -> str:
+    """
+    Format custom criteria dictionary into structured bullet list for LLM
+
+    Args:
+        custom_criteria_dict: Dictionary with keys: use_case_description, target_roles,
+                             target_industries, company_size, additional_requirements
+
+    Returns:
+        Formatted string with bullet points
+    """
+    criteria_parts = []
+
+    # Use Case Description (required)
+    if custom_criteria_dict.get("use_case_description"):
+        criteria_parts.append(f"• Use Case: {custom_criteria_dict['use_case_description']}")
+
+    # Target Roles (optional)
+    if custom_criteria_dict.get("target_roles"):
+        criteria_parts.append(f"• Target Job Titles/Roles: {custom_criteria_dict['target_roles']}")
+
+    # Target Industries (optional)
+    if custom_criteria_dict.get("target_industries"):
+        criteria_parts.append(f"• Target Industries/Sectors: {custom_criteria_dict['target_industries']}")
+
+    # Company Size (optional)
+    if custom_criteria_dict.get("company_size"):
+        criteria_parts.append(f"• Company Size: {custom_criteria_dict['company_size']}")
+
+    # Additional Requirements (optional)
+    if custom_criteria_dict.get("additional_requirements"):
+        criteria_parts.append(f"• Additional Requirements: {custom_criteria_dict['additional_requirements']}")
+
+    return "\n".join(criteria_parts)
+
+
+def evaluate_custom_use_case(profile_summary: str, company_summary: str, custom_criteria_dict: dict) -> dict:
+    """
+    Evaluate profile against user's custom criteria using OpenAI GPT-5 mini
+
+    This is the generic version of evaluate_icp_fit() that works with any user-defined criteria.
+    Uses same OpenAI model and reasoning effort as ICP evaluation for consistency.
+
+    Args:
+        profile_summary: Formatted profile summary from summarize_with_groq()
+        company_summary: Formatted company summary from summarize_with_groq()
+        custom_criteria_dict: Dictionary containing user's custom evaluation criteria
+
+    Returns:
+        dict: {"icp_fit_strength": "High/Medium/Low", "reason": "explanation"}
+    """
+    try:
+        # Format criteria into structured bullet list
+        formatted_criteria = format_custom_criteria(custom_criteria_dict)
+
+        # Build prompt using custom evaluation template
+        prompt = CUSTOM_EVALUATION_PROMPT.format(
+            profile_summary=profile_summary,
+            company_summary=company_summary,
+            custom_criteria=formatted_criteria
+        )
+
+        # Call OpenAI GPT-5 mini with high reasoning effort (same as ICP evaluation)
+        response = requests.post(
+            "https://api.openai.com/v1/responses",
+            headers={
+                "Authorization": f"Bearer {OPENAI_API_KEY}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": "gpt-5-mini",
+                "input": prompt,
+                "reasoning": {"effort": "high"}
+            }
+        )
+        response.raise_for_status()
+
+        # Extract JSON from nested OpenAI response structure (same parsing as ICP)
+        output_items = response.json().get("output", [])
+        text_content = ""
+
+        for item in output_items:
+            if item.get("type") == "message":
+                for content in item.get("content", []):
+                    if content.get("type") == "output_text":
+                        text_content = content.get("text", "")
+                        break
+                if text_content:
+                    break
+
+        if text_content:
+            evaluation_result = json.loads(text_content)
+            print(f"✓ Custom Evaluation: {evaluation_result.get('icp_fit_strength', 'N/A')}")
+            return evaluation_result
+        else:
+            print(f"✗ No response text found from OpenAI (custom evaluation)")
+            return {"icp_fit_strength": "Unknown", "reason": "No response from OpenAI"}
+
+    except Exception as e:
+        print(f"✗ Error evaluating custom use case: {e}")
+        return {"icp_fit_strength": "Unknown", "reason": "Custom evaluation failed"}
+
+
+def validate_custom_evaluation(profile_summary: str, company_summary: str, custom_criteria_dict: dict, evaluation_result: dict) -> dict:
+    """
+    Validate custom evaluation using openai/gpt-oss-20b via Groq
+
+    This is the generic version of validate_icp_evaluation() for custom criteria.
+    Uses same Groq model for consistency with ICP validation.
+
+    Args:
+        profile_summary: Formatted profile summary
+        company_summary: Formatted company summary
+        custom_criteria_dict: User's custom criteria dictionary
+        evaluation_result: Result from evaluate_custom_use_case()
+
+    Returns:
+        dict: {"validation_judgement": "Correct/Incorrect/Unsure", "validation_reason": "explanation"}
+    """
+    try:
+        # Format criteria for validation prompt
+        formatted_criteria = format_custom_criteria(custom_criteria_dict)
+
+        # Extract evaluation result components
+        fit_strength = evaluation_result.get('icp_fit_strength', 'Unknown')
+        reason = evaluation_result.get('reason', 'No reason provided')
+
+        # Build validation prompt
+        prompt = CUSTOM_VALIDATION_PROMPT.format(
+            profile_summary=profile_summary,
+            company_summary=company_summary,
+            custom_criteria=formatted_criteria,
+            icp_fit_strength=fit_strength,
+            icp_reason=reason
+        )
+
+        # Call Groq validation model (same model as ICP validation)
+        response = groq_client.chat.completions.create(
+            model="openai/gpt-oss-20b",
+            messages=[
+                {"role": "system", "content": "You are a senior quality control analyst reviewing a custom use case evaluation. Respond ONLY with valid JSON, no other text."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.2,
+            max_tokens=15000
+        )
+
+        # Extract and parse JSON response
+        result_text = response.choices[0].message.content
+        validation_result = extract_json_from_text(result_text)
+
+        if validation_result is None:
+            print(f"✗ Failed to parse custom validation response")
+            return {
+                "validation_judgement": "Unsure",
+                "validation_reason": "Failed to parse validation response"
+            }
+
+        # Extract validation components
+        judgement = validation_result.get('validation_judgement', 'Unsure')
+        validation_reason = validation_result.get('validation_reason', 'Unable to validate')
+        print(f"✓ Custom Validation: {judgement}")
+
+        return {
+            "validation_judgement": judgement,
+            "validation_reason": validation_reason
+        }
+
+    except Exception as e:
+        print(f"✗ Error in custom validation: {e}")
+        return {
+            "validation_judgement": "Unsure",
+            "validation_reason": f"Validation error: {str(e)}"
+        }
+
+
+# ===================================
 # TIMEOUT WRAPPER FOR PROFILE PROCESSING
 # ===================================
 
-def process_single_profile_with_timeout(reactor, idx, total_count, job_id=None):
+def process_single_profile_with_timeout(reactor, idx, total_count, job_id=None, custom_criteria_dict=None):
     """
     Process profile with 180s timeout. Returns (success, lead_data, skip_info).
+
+    Args:
+        reactor: Reactor data containing profile information
+        idx: Current reactor index
+        total_count: Total reactors to process
+        job_id: Optional job ID for tracking
+        custom_criteria_dict: Optional custom evaluation criteria (if None, uses default ICP evaluation)
     """
     import concurrent.futures
     import time
@@ -425,20 +614,39 @@ def process_single_profile_with_timeout(reactor, idx, total_count, job_id=None):
             print("STEP 2d: Generating summaries with Groq...")
             summaries = summarize_with_groq(profile_data, company_data)
 
-            # STEP 2e: Evaluate ICP fit with OpenAI
-            print("STEP 2e: Evaluating ICP fit with OpenAI...")
-            icp_evaluation = evaluate_icp_fit(
-                summaries.get('profile_summary', ''),
-                summaries.get('company_summary', '')
-            )
+            # STEP 2e: Evaluate fit (ICP mode or Custom mode)
+            if custom_criteria_dict:
+                # Custom use case evaluation mode
+                print("STEP 2e: Evaluating custom use case with OpenAI...")
+                icp_evaluation = evaluate_custom_use_case(
+                    summaries.get('profile_summary', ''),
+                    summaries.get('company_summary', ''),
+                    custom_criteria_dict
+                )
 
-            # STEP 2e-validation: Validate ICP evaluation
-            print("STEP 2e-validation: Validating ICP evaluation...")
-            validation_result = validate_icp_evaluation(
-                summaries.get('profile_summary', ''),
-                summaries.get('company_summary', ''),
-                icp_evaluation
-            )
+                # STEP 2e-validation: Validate custom evaluation
+                print("STEP 2e-validation: Validating custom evaluation...")
+                validation_result = validate_custom_evaluation(
+                    summaries.get('profile_summary', ''),
+                    summaries.get('company_summary', ''),
+                    custom_criteria_dict,
+                    icp_evaluation
+                )
+            else:
+                # Default ICP evaluation mode
+                print("STEP 2e: Evaluating ICP fit with OpenAI...")
+                icp_evaluation = evaluate_icp_fit(
+                    summaries.get('profile_summary', ''),
+                    summaries.get('company_summary', '')
+                )
+
+                # STEP 2e-validation: Validate ICP evaluation
+                print("STEP 2e-validation: Validating ICP evaluation...")
+                validation_result = validate_icp_evaluation(
+                    summaries.get('profile_summary', ''),
+                    summaries.get('company_summary', ''),
+                    icp_evaluation
+                )
 
             # Build lead data
             # Extract company website from various possible fields
@@ -764,10 +972,16 @@ def process_linkedin_post(post_id: str) -> dict:
 # TRACKED WORKFLOW (WITH PROGRESS UPDATES)
 # ===================================
 
-def process_linkedin_post_tracked(post_id: str, job_id: str, jobs: dict) -> dict:
+def process_linkedin_post_tracked(post_id: str, job_id: str, jobs: dict, custom_criteria_dict=None) -> dict:
     """
     Same as process_linkedin_post() but updates job progress for async processing.
     Used by FastAPI background jobs to track real-time progress.
+
+    Args:
+        post_id: LinkedIn post ID/URL
+        job_id: Unique job identifier for tracking
+        jobs: Dictionary tracking all active jobs
+        custom_criteria_dict: Optional custom evaluation criteria (if None, uses default ICP evaluation)
     """
     print(f"\n{'='*60}")
     print(f"STARTING LINKEDIN POST PROCESSING (Job ID: {job_id})")
@@ -807,9 +1021,9 @@ def process_linkedin_post_tracked(post_id: str, job_id: str, jobs: dict) -> dict
             jobs[job_id]["progress"]["current"] = idx
             jobs[job_id]["progress"]["message"] = f"Processing {idx}/{reactors_to_process}: {reactor_name} ({successful_count} successful, {skipped_count} skipped)"
 
-            # Process profile with 180-second timeout
+            # Process profile with 180-second timeout (pass custom criteria if provided)
             success, lead_data, skip_info = process_single_profile_with_timeout(
-                reaction, idx, reactors_to_process, job_id
+                reaction, idx, reactors_to_process, job_id, custom_criteria_dict
             )
 
             if success:
@@ -850,10 +1064,16 @@ def process_linkedin_post_tracked(post_id: str, job_id: str, jobs: dict) -> dict
 # MANUAL PROFILES WORKFLOW (WITH PROGRESS TRACKING)
 # ===================================
 
-def process_manual_profiles_tracked(profile_urls: list, job_id: str, jobs: dict) -> dict:
+def process_manual_profiles_tracked(profile_urls: list, job_id: str, jobs: dict, custom_criteria_dict=None) -> dict:
     """
     Process manually provided LinkedIn profile URLs with progress tracking.
     Similar to process_linkedin_post_tracked() but skips fetching reactions.
+
+    Args:
+        profile_urls: List of LinkedIn profile URLs to process
+        job_id: Unique job identifier for tracking
+        jobs: Dictionary tracking all active jobs
+        custom_criteria_dict: Optional custom evaluation criteria (if None, uses default ICP evaluation)
     """
     print(f"\n{'='*60}")
     print(f"STARTING MANUAL PROFILE PROCESSING (Job ID: {job_id})")
@@ -950,9 +1170,9 @@ def process_manual_profiles_tracked(profile_urls: list, job_id: str, jobs: dict)
                 }
             }
 
-            # Process profile with 180-second timeout
+            # Process profile with 180-second timeout (pass custom criteria if provided)
             success, lead_data, skip_info = process_single_profile_with_timeout(
-                fake_reaction, idx, profiles_to_process, job_id
+                fake_reaction, idx, profiles_to_process, job_id, custom_criteria_dict
             )
 
             if success:

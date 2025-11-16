@@ -1,17 +1,20 @@
 <system_context>
-LinkedIn Lead Profiling Automation - Full-stack system that fetches LinkedIn post reactors, enriches their profiles with AI, evaluates ICP fit, and stores leads in Airtable. Built with Next.js frontend and FastAPI backend.
+LinkedIn Lead Profiling Automation - Full-stack system that fetches LinkedIn post reactors, enriches their profiles with AI, and evaluates them against criteria (default ICP or custom use cases). Stores leads in Airtable. Built with Next.js frontend and FastAPI backend.
 </system_context>
 
 <file_map>
 ## FILE MAP
 - `/frontend/` - Next.js application (TypeScript, runs on 0.0.0.0:3000)
+  - `app/page.tsx` - Main dashboard (ICP evaluation for post reactors)
+  - `app/manual-input/page.tsx` - Manual profile input (ICP evaluation)
+  - `app/custom-evaluation/page.tsx` - Custom use case evaluation (NEW)
   - `app/login/page.tsx` - Password authentication login page
   - `app/api/auth/login/route.ts` - Authentication API endpoint
   - `middleware.ts` - Route protection middleware
 - `/backend/` - FastAPI server (Python, runs on localhost:8000)
-  - `workflow.py` - Main automation workflow
-  - `prompts.py` - Centralized LLM prompt templates
-  - `main.py` - FastAPI server entry point
+  - `workflow.py` - Main automation workflow (supports ICP + custom modes)
+  - `prompts.py` - Centralized LLM prompt templates (ICP + custom prompts)
+  - `main.py` - FastAPI server entry point (ICP + custom endpoints)
 - `/README.md` - Setup instructions and documentation
 - `/.gitignore` - Excludes todo.md, reference.md, must_follow_rules.md
 </file_map>
@@ -32,22 +35,38 @@ LinkedIn Lead Profiling Automation - Full-stack system that fetches LinkedIn pos
   - Public endpoints: `/` (health check), `/api/auth/login`
 
 **Data Flow:**
+
+**Default ICP Mode** (pages: `/` and `/manual-input`):
 1. User authenticates via `/login` (first time or after 7 days)
 2. Password stored in sessionStorage for API authentication
-3. User submits LinkedIn post URL via Next.js UI
-4. Frontend includes `X-API-Key` header with all API requests
-5. Next.js proxies request to `/api/*` → `localhost:8000/api/*`
-6. FastAPI validates API key and runs workflow
-4. Workflow executes linearly in `backend/workflow.py`:
-   - Fetch reactions (Apify)
-   - Check if profile exists (Airtable)
-   - Fetch profile details (Apify)
+3. User submits LinkedIn post URL or manual profile URLs
+4. Frontend calls `/api/process-post` or `/api/process-manual-profiles` with `X-API-Key` header
+5. Next.js proxies to `localhost:8000/api/*`
+6. FastAPI validates API key and runs workflow:
+   - Fetch reactions/profiles (Apify)
    - Fetch company details (Apify, with fallback)
    - Summarize with Groq Llama
-   - Evaluate ICP fit with OpenAI GPT-5 mini (high reasoning via /v1/responses)
-   - Validate ICP evaluation with Groq openai/gpt-oss-20b (quality control)
+   - **Evaluate ICP fit** with OpenAI GPT-5 mini (Dograh-specific criteria)
+   - **Validate ICP evaluation** with Groq openai/gpt-oss-20b
    - Store in Airtable
-5. Results return to frontend dashboard
+7. Results return to frontend dashboard
+
+**Custom Evaluation Mode (NEW)** (page: `/custom-evaluation`):
+1. User authenticates (same as above)
+2. User defines custom criteria:
+   - Use case description (required)
+   - Target roles, industries, company size, additional requirements (optional)
+3. User submits post URL or manual profile URLs
+4. Frontend calls `/api/process-post-custom` or `/api/process-manual-profiles-custom` with criteria
+5. Next.js proxies to backend
+6. FastAPI validates API key and runs workflow:
+   - Fetch reactions/profiles (Apify)
+   - Fetch company details (Apify, with fallback)
+   - Summarize with Groq Llama (same as ICP mode)
+   - **Evaluate custom use case** with OpenAI GPT-5 mini (user's criteria)
+   - **Validate custom evaluation** with Groq openai/gpt-oss-20b
+   - Store in Airtable (same fields as ICP mode)
+7. Results return to frontend (same table structure)
 
 **Tech Stack:**
 - Frontend: Next.js 14, TypeScript, React
@@ -79,6 +98,7 @@ Next.js `rewrites()` in `next.config.js` routes all `/api/*` requests to FastAPI
 - **Password authentication**: Portal protected with password from `backend/.env: PORTAL_PASSWORD`, backend validates server-side, cookie-based session management (7-day expiration)
 - **Backend API security**: All processing endpoints require `X-API-Key` header matching `PORTAL_PASSWORD` - prevents unauthorized direct API access
 - **Minimalist design**: Only essential features implemented, easy to extend
+- **Custom evaluation mode (NEW)**: Separate `/custom-evaluation` page supports any use case - users define criteria via structured form (5 fields), system evaluates profiles against user's criteria instead of Dograh ICP, reuses same Airtable fields and table structure, zero impact on existing ICP workflows
 
 **Gotchas:**
 - Frontend must run on 0.0.0.0:3000 (not localhost) for proper access

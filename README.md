@@ -2,13 +2,14 @@
 
 > ⚠️ **TEMPORARY NOTICE (2025-01-11):** Airtable integration is currently disabled due to performance issues. All profiles are processed and displayed on the frontend, but **NOT saved to Airtable**. This is temporary until Airtable subscription is sorted. See `CHANGES.md` Section 13 for details and revert instructions.
 
-An automated system that profiles LinkedIn users, enriches their data, and evaluates them against your Ideal Customer Persona (ICP). Supports two workflows: processing post reactors automatically or manually inputting specific profiles.
+An automated system that profiles LinkedIn users, enriches their data, and evaluates them against criteria (default ICP or custom use cases). Supports multiple workflows: processing post reactors, manual profile input, and custom evaluation criteria.
 
 ## Features
 
-### Two Processing Workflows:
-- 🔄 **From Post Reactors**: Automatically fetch and process reactions from a LinkedIn post
-- ✍️ **Manual Input**: Process specific profiles by entering LinkedIn URLs (one per line)
+### Three Processing Workflows:
+- 🔄 **From Post Reactors (ICP)**: Automatically fetch and process reactions from a LinkedIn post against Dograh's ICP
+- ✍️ **Manual Input (ICP)**: Process specific profiles by entering LinkedIn URLs against Dograh's ICP
+- 🎯 **Custom Evaluation (NEW)**: Define your own evaluation criteria for any use case - works with both post reactors and manual profiles
 
 ### Core Capabilities:
 - 👤 Enrich profile data from LinkedIn (via Apify)
@@ -33,18 +34,23 @@ An automated system that profiles LinkedIn users, enriches their data, and evalu
 linkedin-profiling/
 ├── frontend/                    # Next.js frontend
 │   ├── app/
-│   │   ├── page.tsx            # Post reactors workflow
+│   │   ├── page.tsx            # Post reactors workflow (ICP mode)
 │   │   ├── manual-input/
-│   │   │   └── page.tsx        # Manual profile input workflow
+│   │   │   └── page.tsx        # Manual profile input workflow (ICP mode)
+│   │   ├── custom-evaluation/
+│   │   │   └── page.tsx        # Custom use case evaluation (NEW)
+│   │   ├── login/
+│   │   │   └── page.tsx        # Authentication
 │   │   └── layout.tsx
+│   ├── middleware.ts           # Route protection
 │   ├── next.config.js          # Proxy configuration
 │   ├── package.json
 │   └── tsconfig.json
 │
 ├── backend/                    # FastAPI backend
-│   ├── main.py                # FastAPI server with job queue
-│   ├── workflow.py            # Linear automation workflows
-│   ├── prompts.py             # Centralized LLM prompts
+│   ├── main.py                # FastAPI server (ICP + custom endpoints)
+│   ├── workflow.py            # Linear automation (supports both modes)
+│   ├── prompts.py             # Centralized LLM prompts (ICP + custom)
 │   ├── test_components.py     # Component testing script
 │   ├── requirements.txt
 │   └── .env.example
@@ -253,6 +259,37 @@ Create a table with these fields (**exact names - case-sensitive**):
    - **Progress bar** updates every 20 seconds showing X/100 profiles processed
    - **Results appear incrementally** as leads are saved to Airtable (~1 lead per minute)
    - **No need to wait** - review leads while processing continues
+
+### Option 3: Custom Evaluation (NEW)
+1. Start both backend and frontend servers
+2. Open `http://localhost:3000` in your browser
+3. Click "Custom Evaluation →" tab
+4. **Define your evaluation criteria** (structured form):
+   - **Use Case Description** (required): Describe what you're looking for
+     - Example: "Find potential customers for HR analytics software"
+   - **Target Job Titles/Roles** (optional): Comma-separated roles
+     - Example: "HR Director, VP People, CHRO, Head of HR"
+   - **Target Industries/Sectors** (optional): Industries to focus on
+     - Example: "SaaS, Fintech, Healthcare, E-commerce"
+   - **Company Size** (optional): Dropdown selection
+     - Options: Any, 1-10, 10-50, 50-200, 200-1000, 1000+ employees
+   - **Additional Requirements** (optional): Exclusions, examples, edge cases
+     - Example: "Exclude consultants and agencies. Prefer B2B companies with venture funding."
+5. **Choose input type**:
+   - **LinkedIn Post URL/ID**: Process reactions from a post
+   - **Manual Profile URLs**: Enter specific profile URLs (one per line)
+6. Click "Start Custom Evaluation"
+7. View real-time progress and results in the dashboard
+   - Same table layout as ICP mode (reuses "ICP Fit" column terminology)
+   - Profiles evaluated against YOUR criteria instead of Dograh's ICP
+   - Same validation workflow for quality control
+
+**Use Cases for Custom Evaluation:**
+- Find founders of B2B SaaS companies in specific industries
+- Identify decision-makers at companies of specific sizes
+- Locate professionals with specific skills/experience combinations
+- Discover potential partners, investors, or collaborators
+- Any custom use case beyond the default ICP
 
 ## Results Table Layout
 

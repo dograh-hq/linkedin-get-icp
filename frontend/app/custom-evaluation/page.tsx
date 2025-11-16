@@ -1,5 +1,6 @@
 /**
- * Main dashboard page with async job polling for long-running LinkedIn lead profiling
+ * Custom Use Case Evaluation Page
+ * Allows users to define custom evaluation criteria for LinkedIn profile processing
  */
 
 'use client';
@@ -44,11 +45,27 @@ type JobStatus = {
   error?: string;
 };
 
-export default function Home() {
+export default function CustomEvaluation() {
   // Track if component has mounted (prevents hydration mismatches)
   const [mounted, setMounted] = useState(false);
 
+  // Input type selection (post vs manual profiles)
+  const [inputType, setInputType] = useState<'post' | 'manual'>('post');
+
+  // Post URL input
   const [postUrl, setPostUrl] = useState('');
+
+  // Manual profile URLs input
+  const [profileUrls, setProfileUrls] = useState('');
+
+  // Custom criteria fields
+  const [useCaseDescription, setUseCaseDescription] = useState('');
+  const [targetRoles, setTargetRoles] = useState('');
+  const [targetIndustries, setTargetIndustries] = useState('');
+  const [companySize, setCompanySize] = useState('');
+  const [additionalRequirements, setAdditionalRequirements] = useState('');
+
+  // Processing state
   const [isProcessing, setIsProcessing] = useState(false);
   const [jobId, setJobId] = useState<string | null>(null);
   const [jobStatus, setJobStatus] = useState<JobStatus | null>(null);
@@ -88,7 +105,7 @@ export default function Home() {
       const data: JobStatus = await response.json();
       setJobStatus(data);
 
-      // Update leads incrementally as results arrive (both partial and final)
+      // Update leads incrementally as results arrive
       if (data.results && data.results.length > 0) {
         setLeads(data.results);
       }
@@ -139,15 +156,47 @@ export default function Home() {
     try {
       // Get API key from session storage
       const apiKey = sessionStorage.getItem('apiKey');
-      
+
+      // Build custom criteria object (send undefined for empty optional fields, they'll be omitted from JSON)
+      const customCriteria: any = {
+        use_case_description: useCaseDescription
+      };
+
+      // Only include optional fields if they have values
+      if (targetRoles && targetRoles.trim()) {
+        customCriteria.target_roles = targetRoles.trim();
+      }
+      if (targetIndustries && targetIndustries.trim()) {
+        customCriteria.target_industries = targetIndustries.trim();
+      }
+      if (companySize && companySize.trim()) {
+        customCriteria.company_size = companySize.trim();
+      }
+      if (additionalRequirements && additionalRequirements.trim()) {
+        customCriteria.additional_requirements = additionalRequirements.trim();
+      }
+
+      // Choose endpoint based on input type
+      const endpoint = inputType === 'post'
+        ? '/api/process-post-custom'
+        : '/api/process-manual-profiles-custom';
+
+      // Build request body based on input type
+      const requestBody = inputType === 'post'
+        ? { post_url: postUrl, custom_criteria: customCriteria }
+        : {
+            profile_urls: profileUrls.split('\n').map(url => url.trim()).filter(url => url),
+            custom_criteria: customCriteria
+          };
+
       // Start the job
-      const response = await fetch('/api/process-post', {
+      const response = await fetch(endpoint, {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
           'X-API-Key': apiKey || ''
         },
-        body: JSON.stringify({ post_url: postUrl })
+        body: JSON.stringify(requestBody)
       });
 
       if (!response.ok) {
@@ -184,6 +233,21 @@ export default function Home() {
     <div style={{ padding: '40px', maxWidth: '1400px', margin: '0 auto', fontFamily: 'system-ui, sans-serif' }}>
       {/* Navigation */}
       <div style={{ marginBottom: '20px', display: 'flex', gap: '10px' }}>
+        <Link
+          href="/"
+          style={{
+            padding: '8px 16px',
+            backgroundColor: '#f5f5f5',
+            border: '1px solid #ddd',
+            borderRadius: '6px',
+            textDecoration: 'none',
+            color: '#333',
+            fontSize: '14px',
+            fontWeight: '500'
+          }}
+        >
+          ← Back to ICP Dashboard
+        </Link>
         <div style={{
           padding: '8px 16px',
           backgroundColor: '#0066cc',
@@ -193,82 +257,240 @@ export default function Home() {
           fontSize: '14px',
           fontWeight: '600'
         }}>
-          From Post Reactors
+          Custom Evaluation
         </div>
-        <Link
-          href="/manual-input"
-          style={{
-            padding: '8px 16px',
-            backgroundColor: '#f5f5f5',
-            border: '1px solid #ddd',
-            borderRadius: '6px',
-            textDecoration: 'none',
-            color: '#333',
-            fontSize: '14px',
-            fontWeight: '500'
-          }}
-        >
-          Manual Input →
-        </Link>
-        <Link
-          href="/custom-evaluation"
-          style={{
-            padding: '8px 16px',
-            backgroundColor: '#f5f5f5',
-            border: '1px solid #ddd',
-            borderRadius: '6px',
-            textDecoration: 'none',
-            color: '#333',
-            fontSize: '14px',
-            fontWeight: '500'
-          }}
-        >
-          Custom Evaluation →
-        </Link>
       </div>
 
       <h1 style={{ fontSize: '32px', fontWeight: 'bold', marginBottom: '10px' }}>
-        LinkedIn Lead Profiling
+        Custom Use Case Evaluation
       </h1>
       <p style={{ color: '#666', marginBottom: '30px', fontSize: '16px' }}>
-        Process LinkedIn post reactors automatically
+        Define your own evaluation criteria to scan LinkedIn profiles
       </p>
 
       {/* Input Form */}
       <form onSubmit={handleSubmit} style={{ marginBottom: '40px' }}>
-        <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
-          <input
-            type="text"
-            value={postUrl}
-            onChange={(e) => setPostUrl(e.target.value)}
-            placeholder="Enter LinkedIn Post URL or ID (e.g., 7392508631268835328)"
-            style={{
-              flex: 1,
-              padding: '12px 16px',
-              fontSize: '16px',
-              border: '1px solid #ddd',
-              borderRadius: '6px'
-            }}
-            disabled={isProcessing}
-            required
-          />
-          <button
-            type="submit"
-            disabled={isProcessing}
-            style={{
-              padding: '12px 32px',
-              fontSize: '16px',
-              fontWeight: '600',
-              backgroundColor: isProcessing ? '#ccc' : '#0066cc',
-              color: 'white',
-              border: 'none',
-              borderRadius: '6px',
-              cursor: isProcessing ? 'not-allowed' : 'pointer'
-            }}
-          >
-            {isProcessing ? 'Processing...' : 'Process Post'}
-          </button>
+        {/* Custom Criteria Fields */}
+        <div style={{
+          backgroundColor: '#f9f9f9',
+          padding: '24px',
+          borderRadius: '8px',
+          border: '1px solid #ddd',
+          marginBottom: '24px'
+        }}>
+          <h3 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '16px' }}>
+            Evaluation Criteria
+          </h3>
+
+          {/* Use Case Description - REQUIRED */}
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ display: 'block', fontWeight: '500', marginBottom: '6px', fontSize: '14px' }}>
+              Use Case Description *
+            </label>
+            <textarea
+              value={useCaseDescription}
+              onChange={(e) => setUseCaseDescription(e.target.value)}
+              placeholder="Describe what you're looking for. Example: Find potential customers for HR analytics software"
+              rows={3}
+              style={{
+                width: '100%',
+                padding: '12px',
+                fontSize: '14px',
+                border: '1px solid #ddd',
+                borderRadius: '6px',
+                fontFamily: 'system-ui, sans-serif'
+              }}
+              disabled={isProcessing}
+              required
+            />
+          </div>
+
+          {/* Target Roles - OPTIONAL */}
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ display: 'block', fontWeight: '500', marginBottom: '6px', fontSize: '14px' }}>
+              Target Job Titles/Roles (optional)
+            </label>
+            <input
+              type="text"
+              value={targetRoles}
+              onChange={(e) => setTargetRoles(e.target.value)}
+              placeholder="Example: HR Director, VP People, CHRO, Head of HR"
+              style={{
+                width: '100%',
+                padding: '12px',
+                fontSize: '14px',
+                border: '1px solid #ddd',
+                borderRadius: '6px'
+              }}
+              disabled={isProcessing}
+            />
+          </div>
+
+          {/* Target Industries - OPTIONAL */}
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ display: 'block', fontWeight: '500', marginBottom: '6px', fontSize: '14px' }}>
+              Target Industries/Sectors (optional)
+            </label>
+            <input
+              type="text"
+              value={targetIndustries}
+              onChange={(e) => setTargetIndustries(e.target.value)}
+              placeholder="Example: SaaS, Fintech, Healthcare, E-commerce"
+              style={{
+                width: '100%',
+                padding: '12px',
+                fontSize: '14px',
+                border: '1px solid #ddd',
+                borderRadius: '6px'
+              }}
+              disabled={isProcessing}
+            />
+          </div>
+
+          {/* Company Size - OPTIONAL */}
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ display: 'block', fontWeight: '500', marginBottom: '6px', fontSize: '14px' }}>
+              Company Size (optional)
+            </label>
+            <select
+              value={companySize}
+              onChange={(e) => setCompanySize(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '12px',
+                fontSize: '14px',
+                border: '1px solid #ddd',
+                borderRadius: '6px',
+                backgroundColor: 'white'
+              }}
+              disabled={isProcessing}
+            >
+              <option value="">Any</option>
+              <option value="1-10 employees">1-10 employees</option>
+              <option value="10-50 employees">10-50 employees</option>
+              <option value="50-200 employees">50-200 employees</option>
+              <option value="200-1000 employees">200-1000 employees</option>
+              <option value="1000+ employees">1000+ employees</option>
+            </select>
+          </div>
+
+          {/* Additional Requirements - OPTIONAL */}
+          <div style={{ marginBottom: '0' }}>
+            <label style={{ display: 'block', fontWeight: '500', marginBottom: '6px', fontSize: '14px' }}>
+              Additional Requirements (optional)
+            </label>
+            <textarea
+              value={additionalRequirements}
+              onChange={(e) => setAdditionalRequirements(e.target.value)}
+              placeholder="Exclusions, examples, edge cases. Example: Exclude consultants and agencies. Prefer B2B companies with venture funding."
+              rows={4}
+              style={{
+                width: '100%',
+                padding: '12px',
+                fontSize: '14px',
+                border: '1px solid #ddd',
+                borderRadius: '6px',
+                fontFamily: 'system-ui, sans-serif'
+              }}
+              disabled={isProcessing}
+            />
+          </div>
         </div>
+
+        {/* Input Type Selection */}
+        <div style={{ marginBottom: '20px' }}>
+          <h3 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '12px' }}>
+            Profile Source
+          </h3>
+          <div style={{ display: 'flex', gap: '16px' }}>
+            <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+              <input
+                type="radio"
+                value="post"
+                checked={inputType === 'post'}
+                onChange={(e) => setInputType('post')}
+                disabled={isProcessing}
+                style={{ marginRight: '8px' }}
+              />
+              <span style={{ fontSize: '14px', fontWeight: '500' }}>LinkedIn Post URL/ID</span>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+              <input
+                type="radio"
+                value="manual"
+                checked={inputType === 'manual'}
+                onChange={(e) => setInputType('manual')}
+                disabled={isProcessing}
+                style={{ marginRight: '8px' }}
+              />
+              <span style={{ fontSize: '14px', fontWeight: '500' }}>Manual Profile URLs</span>
+            </label>
+          </div>
+        </div>
+
+        {/* Conditional Input Fields */}
+        {inputType === 'post' && (
+          <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+            <input
+              type="text"
+              value={postUrl}
+              onChange={(e) => setPostUrl(e.target.value)}
+              placeholder="Enter LinkedIn Post URL or ID (e.g., 7392508631268835328)"
+              style={{
+                flex: 1,
+                padding: '12px 16px',
+                fontSize: '16px',
+                border: '1px solid #ddd',
+                borderRadius: '6px'
+              }}
+              disabled={isProcessing}
+              required
+            />
+          </div>
+        )}
+
+        {inputType === 'manual' && (
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ display: 'block', fontWeight: '500', marginBottom: '6px', fontSize: '14px' }}>
+              LinkedIn Profile URLs (one per line)
+            </label>
+            <textarea
+              value={profileUrls}
+              onChange={(e) => setProfileUrls(e.target.value)}
+              placeholder="https://linkedin.com/in/username1&#10;https://linkedin.com/in/username2&#10;https://linkedin.com/in/username3"
+              rows={6}
+              style={{
+                width: '100%',
+                padding: '12px',
+                fontSize: '14px',
+                border: '1px solid #ddd',
+                borderRadius: '6px',
+                fontFamily: 'system-ui, sans-serif'
+              }}
+              disabled={isProcessing}
+              required
+            />
+          </div>
+        )}
+
+        {/* Submit Button */}
+        <button
+          type="submit"
+          disabled={isProcessing}
+          style={{
+            padding: '12px 32px',
+            fontSize: '16px',
+            fontWeight: '600',
+            backgroundColor: isProcessing ? '#ccc' : '#0066cc',
+            color: 'white',
+            border: 'none',
+            borderRadius: '6px',
+            cursor: isProcessing ? 'not-allowed' : 'pointer',
+            width: '100%'
+          }}
+        >
+          {isProcessing ? 'Processing...' : 'Start Custom Evaluation'}
+        </button>
       </form>
 
       {error && (
@@ -346,7 +568,7 @@ export default function Home() {
           </div>
 
           <div style={{ marginTop: '12px', fontSize: '14px', color: '#666' }}>
-            ⏱️ This may take a while (~1 minute per profile). Do not leave this page and kindly don't process other profiles till the process is completed. Please wait around 60seconds after 100% processing is done- then results shall be populated. 
+            ⏱️ This may take a while (~1 minute per profile). Please wait...
           </div>
         </div>
       )}
@@ -367,7 +589,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* Results Table */}
+      {/* Results Table - Same structure as main page, reuses "ICP Fit" terminology */}
       {leads.length > 0 && (
         <div>
           <h2 style={{ fontSize: '24px', fontWeight: '600', marginBottom: '16px' }}>
@@ -402,7 +624,7 @@ export default function Home() {
                     <td style={{ padding: '12px', width: '150px' }}>
                       <div>{lead.company_name || 'N/A'}</div>
                       {lead.company_website && (
-                        <a href={lead.company_website} target="_blank" rel="noopener noreferrer" 
+                        <a href={lead.company_website} target="_blank" rel="noopener noreferrer"
                            style={{ color: '#0066cc', fontSize: '12px', textDecoration: 'none', wordBreak: 'break-all' }}>
                           {lead.company_website}
                         </a>

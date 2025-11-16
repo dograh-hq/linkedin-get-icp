@@ -1,12 +1,12 @@
 <system_context>
-FastAPI backend that orchestrates LinkedIn lead profiling workflow. Exposes single endpoint that processes post reactions through linear automation pipeline.
+FastAPI backend that orchestrates LinkedIn lead profiling workflow. Supports both default ICP evaluation (Dograh-specific) and custom use case evaluation (user-defined criteria). Exposes endpoints for post reactions and manual profile processing.
 </system_context>
 
 <file_map>
 ## FILE MAP
-- `main.py` - FastAPI server with /api/process-post endpoint
-- `workflow.py` - Complete automation workflow (all steps visible linearly)
-- `prompts.py` - Centralized LLM prompt templates
+- `main.py` - FastAPI server with /api/process-post and /api/process-post-custom endpoints
+- `workflow.py` - Complete automation workflow (all steps visible linearly, supports both ICP and custom modes)
+- `prompts.py` - Centralized LLM prompt templates (ICP prompts + custom evaluation prompts)
 - `test_components.py` - Individual component testing script
 - `requirements.txt` - Python dependencies
 - `.env.example` - Template for environment variables
@@ -15,21 +15,34 @@ FastAPI backend that orchestrates LinkedIn lead profiling workflow. Exposes sing
 <paved_path>
 ## ARCHITECTURE (PAVED PATH)
 
-**Entry Point:**
-`main.py` → FastAPI app → `/api/process-post` endpoint → `workflow.process_linkedin_post()`
+**Entry Points:**
+
+1. **Default ICP Mode:**
+   - `main.py` → `/api/process-post` → `process_linkedin_post_tracked(post_id, job_id, jobs)`
+   - `main.py` → `/api/process-manual-profiles` → `process_manual_profiles_tracked(urls, job_id, jobs)`
+
+2. **Custom Evaluation Mode (NEW):**
+   - `main.py` → `/api/process-post-custom` → `process_linkedin_post_tracked(post_id, job_id, jobs, custom_criteria_dict)`
+   - `main.py` → `/api/process-manual-profiles-custom` → `process_manual_profiles_tracked(urls, job_id, jobs, custom_criteria_dict)`
 
 **Workflow Execution (in workflow.py):**
 ```
 1. fetch_post_reactions() - Get reactors from LinkedIn post (limited to first 100)
 2. Loop through each reactor:
-   a. check_profile_exists() - Skip if already in Airtable
-   b. fetch_profile_details() - Get LinkedIn profile data
-   c. fetch_company_details_primary() - Get company info
-   d. fetch_company_details_backup() - Fallback if primary fails
-   e. summarize_with_groq() - AI summarization
-   f. evaluate_icp_fit() - OpenAI ICP matching
-   g. validate_icp_evaluation() - Quality check on ICP evaluation (Groq openai/gpt-oss-20b)
-   h. create_or_update_airtable_record() - Store results
+   a. fetch_profile_details() - Get LinkedIn profile data
+   b. fetch_company_details_primary() - Get company info
+   c. fetch_company_details_backup() - Fallback if primary fails
+   d. summarize_with_groq() - AI summarization (same for both modes)
+
+   e. BRANCHING LOGIC (NEW):
+      If custom_criteria_dict provided:
+        → evaluate_custom_use_case() - Generic evaluation with user's criteria
+        → validate_custom_evaluation() - Validate custom evaluation
+      Else:
+        → evaluate_icp_fit() - Dograh-specific ICP evaluation
+        → validate_icp_evaluation() - Validate ICP evaluation
+
+   f. create_or_update_airtable_record() - Store results (same fields for both modes)
 3. Return aggregated results
 
 Note: Limited to 100 reactors per post to avoid API overload and LinkedIn rate limits
@@ -38,8 +51,8 @@ Note: Limited to 100 reactors per post to avoid API overload and LinkedIn rate l
 **API Integrations:**
 - Apify: 4 different actors for LinkedIn scraping
 - Airtable: pyairtable SDK for lead storage
-- Groq: llama-3.3-70b-versatile for summarization
-- OpenAI: gpt-5-mini via /v1/responses endpoint with high reasoning effort for ICP evaluation
+- Groq: llama-3.3-70b-versatile for summarization (both modes)
+- OpenAI: gpt-5-mini via /v1/responses endpoint with high reasoning effort for evaluation (both modes)
 </paved_path>
 
 <critical_notes>
@@ -108,6 +121,23 @@ Note: Limited to 100 reactors per post to avoid API overload and LinkedIn rate l
   - Removed excessive logging, validation_debug.log file writing, and strategy-by-strategy prints
   - Kept: Step tracking (STEP 1:, STEP 2b:), success/failure indicators (✓/✗/⊘/⚠), progress counters
   - Result: Cleaner code, faster execution, easier maintenance
+
+- **Custom Use Case Evaluation (NEW - 2025-01-16)**:
+  - **Generic evaluation mode**: Supports any user-defined criteria (not just Dograh ICP)
+  - **Separate endpoints**: `/api/process-post-custom` and `/api/process-manual-profiles-custom`
+  - **Structured criteria input**: Users provide 5 fields (1 required, 4 optional):
+    1. `use_case_description` (required) - What they're looking for
+    2. `target_roles` (optional) - Job titles/roles
+    3. `target_industries` (optional) - Industries/sectors
+    4. `company_size` (optional) - Company size range
+    5. `additional_requirements` (optional) - Exclusions, examples, edge cases
+  - **Formatted criteria**: `format_custom_criteria()` converts dict to bullet list for LLM
+  - **Custom prompts**: `CUSTOM_EVALUATION_PROMPT` and `CUSTOM_VALIDATION_PROMPT` in prompts.py
+  - **Custom functions**: `evaluate_custom_use_case()` and `validate_custom_evaluation()` in workflow.py
+  - **Same API models**: Uses identical OpenAI GPT-5 mini (high reasoning) and Groq gpt-oss-20b
+  - **Same Airtable fields**: Reuses `icp_fit_strength`, `reason`, `validation_judgement`, `validation_reason`
+  - **Zero impact on ICP mode**: All original ICP prompts and functions unchanged
+  - **Branching logic**: `process_single_profile_with_timeout()` checks if `custom_criteria_dict` is None
 
 **Gotchas:**
 - Must run on localhost:8000 for Next.js proxy to work
